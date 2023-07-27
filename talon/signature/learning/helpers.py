@@ -6,49 +6,8 @@
 
 """
 import unicodedata
-
 import regex as re
-
-from talon.signature.constants import SIGNATURE_MAX_LINES
-
-rc = re.compile
-
-RE_EMAIL = rc('\S@\S')
-RE_RELAX_PHONE = rc('(\(? ?[\d]{2,3} ?\)?.{,3}?){2,}')
-RE_URL = rc(r"""https?://|www\.[\S]+\.[\S]""")
-
-# Taken from:
-# http://www.cs.cmu.edu/~vitor/papers/sigFilePaper_finalversion.pdf
-# Line matches the regular expression "^[\s]*---*[\s]*$".
-RE_SEPARATOR = rc('^[\s]*---*[\s]*$')
-
-# Taken from:
-# http://www.cs.cmu.edu/~vitor/papers/sigFilePaper_finalversion.pdf
-# Line has a sequence of 10 or more special characters.
-RE_SPECIAL_CHARS = rc(('^[\s]*([\*]|#|[\+]|[\^]|-|[\~]|[\&]|[\$]|_|[\!]|'
-                       '[\/]|[\%]|[\:]|[\=]){10,}[\s]*$'))
-
-RE_SIGNATURE_WORDS = rc(('(T|t)hank.*,|(B|b)est|(R|r)egards|'
-                         '^sent[ ]{1}from[ ]{1}my[\s,!\w]*$|BR|(S|s)incerely|'
-                         '(C|c)orporation|Group'))
-
-# Taken from:
-# http://www.cs.cmu.edu/~vitor/papers/sigFilePaper_finalversion.pdf
-# Line contains a pattern like Vitor R. Carvalho or William W. Cohen.
-RE_NAME = rc('[A-Z][a-z]+\s\s?[A-Z][\.]?\s\s?[A-Z][a-z]+')
-
-INVALID_WORD_START = rc('\(|\+|[\d]')
-
-BAD_SENDER_NAMES = [
-    # known mail domains
-    'hotmail', 'gmail', 'yandex', 'mail', 'yahoo', 'mailgun', 'mailgunhq',
-    'example',
-    # first level domains
-    'com', 'org', 'net', 'ru',
-    # bad words
-    'mailto'
-    ]
-
+from talon.constants import (SIGNATURE_MAX_LINES, SIGNATURE_LINE_MAX_CHARS, RE_EMAIL, RE_RELAX_PHONE, RE_URL, RE_SIGNATURE_WORDS, INVALID_WORD_START, BAD_SENDER_NAMES)
 
 def binary_regex_search(prog):
     """Returns a function that returns 1 or 0 depending on regex search result.
@@ -214,19 +173,20 @@ def has_signature(body, sender):
     sender_check = contains_sender_names(sender)
     for line in candidate:
         # we check lines for sender's name, phone, email and url,
-        # those signature lines don't take more then 27 lines
-        if len(line.strip()) > 27:
+        # those signature lines shouldn't take more then 40 characters. You can override this with the environment variable.
+        if len(line.strip()) > SIGNATURE_LINE_MAX_CHARS:
             continue
+
+        if (binary_regex_search(RE_SIGNATURE_WORDS)(line)):
+            upvotes += 1
 
         if sender_check(line):
             return True
 
-        if (binary_regex_search(RE_RELAX_PHONE)(line) +
-                binary_regex_search(RE_EMAIL)(line) +
-                binary_regex_search(RE_URL)(line) == 1):
+        if (binary_regex_search(RE_RELAX_PHONE)(line) + binary_regex_search(RE_EMAIL)(line) + binary_regex_search(RE_URL)(line) == 1):
             upvotes += 1
 
-    if upvotes > 1:
+    if upvotes >= 1:
         return True
 
     return False

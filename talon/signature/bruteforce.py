@@ -1,72 +1,10 @@
 from __future__ import absolute_import
 
 import logging
-
-import regex as re
-
-from talon.signature.constants import (SIGNATURE_MAX_LINES, TOO_LONG_SIGNATURE_LINE)
+from talon.constants import (SIGNATURE_MAX_LINES,TOO_LONG_SIGNATURE_LINE,RE_SIGNATURE,RE_FOOTER_WORDS,RE_PHONE_SIGNATURE,RE_SIGNATURE_CANDIDATE)
 from talon.utils import get_delimiter
 
 log = logging.getLogger(__name__)
-
-# regex to fetch signature based on common signature words
-RE_SIGNATURE = re.compile(r'''
-               (
-                   (?:
-                       ^[\s]*--*[\s]*[a-z \.]*$
-                       |
-                       ^thanks[\s,!]*$
-                       |
-                       ^thanks?[\s]+you[\s,!]*$
-                       |
-                       ^regards[\s,!]*$
-                       |
-                       ^cheers[\s,!]*$
-                       |
-                       ^best[ a-z]*[\s,!]*$
-                       |
-                       ^All\s+[my|the]\s+best[ a-z]*[\s,!]*$
-                       |
-                       ^sincerely[ a-z]*[\s,!]*$
-                   )
-                   .*
-               )
-               ''', re.I | re.X | re.M | re.S)
-
-# signatures appended by phone email clients
-RE_PHONE_SIGNATURE = re.compile(r'''
-               (
-                   (?:
-                       ^sent[ ]{1}from[ ]{1}my[\s,!\w]*$
-                       |
-                       ^sent[ ]from[ ]Mailbox[ ]for[ ]iPhone.*$
-                       |
-                       ^sent[ ]from[ ]a[ ]phone.*$
-                       |
-                       ^sent[ ]([\S]*[ ])?from[ ]my[ ]BlackBerry.*$
-                       |
-                       ^Enviado[ ]desde[ ]mi[ ]([\S]+[ ]){0,2}BlackBerry.*$
-                   )
-                   .*
-               )
-               ''', re.I | re.X | re.M | re.S)
-
-# see _mark_candidate_indexes() for details
-# c - could be signature line
-# d - line starts with dashes (could be signature or list item)
-# l - long line
-RE_SIGNATURE_CANDIDATE = re.compile(r'''
-    (?P<candidate>c+d)[^d]
-    |
-    (?P<candidate>c+d)$
-    |
-    (?P<candidate>c+)
-    |
-    (?P<candidate>d)[^d]
-    |
-    (?P<candidate>d)$
-''', re.I | re.X | re.M | re.S)
-
 
 def extract_signature(msg_body):
     '''
@@ -167,17 +105,26 @@ def _mark_candidate_indexes(lines, candidate):
     >>> _mark_candidate_lines(['Some text', '', '-', 'Bob'], [0, 2, 3])
     'cdc'
     """
+    # Footers start at the last line whene we traverse backwords. So once it's broken, we don't accept matches to the word.
+    search_for_footer = True
     # at first consider everything to be potential signature lines
     markers = list('c' * len(candidate))
-
     # mark lines starting from bottom up
     for i, line_idx in reversed(list(enumerate(candidate))):
-        if len(lines[line_idx].strip()) > TOO_LONG_SIGNATURE_LINE:
+        # This allows us to keep longer footer lines as potential candidates until we see a break in a signature footer
+        if search_for_footer and RE_FOOTER_WORDS.search(lines[line_idx]):
+            markers[i] = 'c'
+        elif search_for_footer and RE_SIGNATURE.search(lines[line_idx]):
+            markers[i] = 'c'
+            search_for_footer = False
+        elif len(lines[line_idx].strip()) > TOO_LONG_SIGNATURE_LINE:
             markers[i] = 'l'
+            search_for_footer = False
         else:
             line = lines[line_idx].strip()
-            if line.startswith('-') and line.strip("-"):
+            if (line.startswith('-') and line.strip("-")):
                 markers[i] = 'd'
+            search_for_footer = False
 
     return "".join(markers)
 
