@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 import logging
-from talon.constants import (SIGNATURE_MAX_LINES,TOO_LONG_SIGNATURE_LINE,RE_SIGNATURE,RE_FOOTER_WORDS,RE_PHONE_SIGNATURE,RE_SIGNATURE_CANDIDATE)
+from talon.constants import (SIGNATURE_MAX_LINES,TOO_LONG_SIGNATURE_LINE,RE_SIGNATURE,RE_SIGNATURE_FOOTER,RE_PHONE_SIGNATURE,RE_SIGNATURE_CANDIDATE)
 from talon.utils import get_delimiter
 
 log = logging.getLogger(__name__)
@@ -112,7 +112,7 @@ def _mark_candidate_indexes(lines, candidate):
     # mark lines starting from bottom up
     for i, line_idx in reversed(list(enumerate(candidate))):
         # This allows us to keep longer footer lines as potential candidates until we see a break in a signature footer
-        if search_for_footer and RE_FOOTER_WORDS.search(lines[line_idx]):
+        if search_for_footer and RE_SIGNATURE_FOOTER.search(lines[line_idx]):
             markers[i] = 'c'
         elif search_for_footer and RE_SIGNATURE.search(lines[line_idx]):
             markers[i] = 'c'

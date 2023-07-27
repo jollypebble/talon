@@ -6,7 +6,7 @@ import logging
 
 import numpy
 import regex as re
-from talon.signature.bruteforce import get_signature_candidate, RE_FOOTER_WORDS
+from talon.signature.bruteforce import get_signature_candidate
 from talon.signature.learning.featurespace import features, build_pattern
 from talon.signature.learning.helpers import has_signature
 from talon.utils import get_delimiter

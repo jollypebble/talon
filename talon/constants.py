@@ -30,7 +30,7 @@ RE_SIGNATURE = re.compile(r'''
                )
                ''', re.I | re.X | re.M | re.S)
 
-RE_FOOTER_WORDS = re.compile(r'''
+RE_SIGNATURE_FOOTER = re.compile(r'''
                 (
                     (?:
                         privileged
