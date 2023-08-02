@@ -1,8 +1,9 @@
 from __future__ import absolute_import
 
 import logging
-from talon.constants import (SIGNATURE_MAX_LINES,TOO_LONG_SIGNATURE_LINE,RE_SIGNATURE,RE_FOOTER_WORDS,RE_PHONE_SIGNATURE,RE_SIGNATURE_CANDIDATE)
-from talon.utils import get_delimiter
+import Levenshtein
+from talon.constants import (SIGNATURE_MAX_LINES,TOO_LONG_SIGNATURE_LINE,RE_SIGNATURE,RE_FOOTER, KNOWN_FOOTER_LINES,RE_SIGNATURE_CANDIDATE)
+from talon.utils import get_delimiter, apply_filters, compile_pattern
 
 log = logging.getLogger(__name__)
 
@@ -24,23 +25,27 @@ def extract_signature(msg_body):
 
         # make an assumption
         stripped_body = msg_body.strip()
-        phone_signature = None
+        footer = None
 
         # strip off phone signature
-        phone_signature = RE_PHONE_SIGNATURE.search(msg_body)
-        if phone_signature:
-            stripped_body = stripped_body[:phone_signature.start()]
-            phone_signature = phone_signature.group()
+        #footer_pattern = compile_pattern('talon_email_footer_patterns', RE_FOOTER)
+        #footer = footer_pattern.search(msg_body)
+        #if footer:
+        #    stripped_body = stripped_body[:footer.start()]
+        #    footer = footer.group()
 
         # decide on signature candidate
         lines = stripped_body.splitlines()
-        candidate = get_signature_candidate(lines)
+
+        (candidate, lines, footer) = get_signature_candidate(lines)
         candidate = delimiter.join(candidate)
 
         # try to extract signature
-        signature = RE_SIGNATURE.search(candidate)
+        sig_pattern = compile_pattern('talon_email_signature_patterns', RE_SIGNATURE)
+        signature = sig_pattern.search(candidate)
+
         if not signature:
-            return (stripped_body.strip(), phone_signature)
+            return (stripped_body.strip(), footer)
         else:
             signature = signature.group()
             # when we splitlines() and then join them
@@ -50,11 +55,11 @@ def extract_signature(msg_body):
             stripped_body = delimiter.join(lines)
             stripped_body = stripped_body[:-len(signature)]
 
-            if phone_signature:
-                signature = delimiter.join([signature, phone_signature])
+            if footer:
+                footer = delimiter.join(footer)
+                signature = delimiter.join([signature, footer])
 
-            return (stripped_body.strip(),
-                    signature.strip())
+            return (stripped_body.strip(), signature.strip())
     except Exception:
         log.exception('ERROR extracting signature')
         return (msg_body, None)
@@ -75,22 +80,57 @@ def get_signature_candidate(lines):
 
     # if message is empty or just one line then there is no signature
     if len(non_empty) <= 1:
-        return []
+        return ([],lines,None)
 
     # we don't expect signature to start at the 1st line
     candidate = non_empty[1:]
+
+    # Strip know footer lines
+
+    footer_start_idx = len(candidate)-1
+    footer = None
+
+    footer_pattern = compile_pattern('talon_email_footer_patterns', RE_FOOTER)
+    footer_lines = apply_filters('talon_email_footer_lines', KNOWN_FOOTER_LINES)
+    similarity_ratio = apply_filters('talon_email_footer_lines_ratio', 0.75)
+
+    for i, line_idx in reversed(list(enumerate(candidate))):
+        is_footer_line = False
+
+        if footer_pattern.search(lines[line_idx]):
+            is_footer_line = True
+
+        if (is_footer_line):
+            footer_start_idx = i
+            continue
+        else:
+            for footer_line in footer_lines:
+                if Levenshtein.ratio(footer_line, lines[line_idx]) > similarity_ratio:
+                    is_footer_line = True
+                    footer_start_idx = i
+                    break
+
+            if is_footer_line:
+                continue
+            else:
+                break
+
+    if (footer_start_idx != len(candidate)-1):
+        sig_stop = footer_start_idx
+        footer = lines[candidate[sig_stop]:]
+        lines = lines[:candidate[sig_stop]]
+        candidate = candidate[:sig_stop]
+
     # signature shouldn't be longer then SIGNATURE_MAX_LINES
     candidate = candidate[-SIGNATURE_MAX_LINES:]
-
     markers = _mark_candidate_indexes(lines, candidate)
     candidate = _process_marked_candidate_indexes(candidate, markers)
-
     # get actual lines for the candidate instead of indexes
     if candidate:
         candidate = lines[candidate[0]:]
-        return candidate
+        return (candidate,lines,footer)
 
-    return []
+    return ([],lines,footer)
 
 
 def _mark_candidate_indexes(lines, candidate):
@@ -106,25 +146,29 @@ def _mark_candidate_indexes(lines, candidate):
     'cdc'
     """
     # Footers start at the last line whene we traverse backwords. So once it's broken, we don't accept matches to the word.
-    search_for_footer = True
+    #search_for_footer = True
     # at first consider everything to be potential signature lines
     markers = list('c' * len(candidate))
+    #sig_pattern = compile_pattern('talon_email_signature_patterns', RE_SIGNATURE)
+    #footer_pattern = compile_pattern('talon_email_footer_patterns', RE_FOOTER)
     # mark lines starting from bottom up
     for i, line_idx in reversed(list(enumerate(candidate))):
         # This allows us to keep longer footer lines as potential candidates until we see a break in a signature footer
-        if search_for_footer and RE_FOOTER_WORDS.search(lines[line_idx]):
-            markers[i] = 'c'
-        elif search_for_footer and RE_SIGNATURE.search(lines[line_idx]):
-            markers[i] = 'c'
-            search_for_footer = False
-        elif len(lines[line_idx].strip()) > TOO_LONG_SIGNATURE_LINE:
+        #if search_for_footer and footer_pattern.search(lines[line_idx]):
+        #    markers[i] = 'c'
+        #elif search_for_footer and sig_pattern.search(lines[line_idx]):
+        #if sig_pattern.search(lines[line_idx]):
+        #    markers[i] = 'c'
+            #search_for_footer = False
+        #elif len(lines[line_idx].strip()) > TOO_LONG_SIGNATURE_LINE:
+        if len(lines[line_idx].strip()) > TOO_LONG_SIGNATURE_LINE:
             markers[i] = 'l'
-            search_for_footer = False
+            #search_for_footer = False
         else:
             line = lines[line_idx].strip()
             if (line.startswith('-') and line.strip("-")):
                 markers[i] = 'd'
-            search_for_footer = False
+            #search_for_footer = False
 
     return "".join(markers)
 

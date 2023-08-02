@@ -6,10 +6,11 @@ import logging
 
 import numpy
 import regex as re
-from talon.signature.bruteforce import get_signature_candidate, RE_FOOTER_WORDS
+from talon.signature.bruteforce import get_signature_candidate
 from talon.signature.learning.featurespace import features, build_pattern
 from talon.signature.learning.helpers import has_signature
-from talon.utils import get_delimiter
+from talon.utils import get_delimiter, compile_pattern
+from talon.constants import (RE_SIGNATURE)
 
 log = logging.getLogger(__name__)
 
@@ -49,13 +50,17 @@ def extract(body, sender):
 
         if has_signature(body, sender):
             lines = body.splitlines()
-
-            markers = _mark_lines(lines, sender)
+            (markers,lines,footer) = _mark_lines(lines, sender)
             text, signature = _process_marked_lines(lines, markers)
+            text = delimiter.join(text)
             if signature:
-                text = delimiter.join(text)
+                if footer:
+                    signature.extend(footer)
                 if text.strip():
                     return (text, delimiter.join(signature))
+            elif footer:
+                return (text, delimiter.join(footer))
+
     except Exception as e:
         log.exception('ERROR when extracting signature with classifiers')
 
@@ -75,10 +80,11 @@ def _mark_lines(lines, sender):
     'tes'
     """
     global EXTRACTOR
-    candidate = get_signature_candidate(lines)
+    (candidate, lines, footer) = get_signature_candidate(lines)
 
     # at first consider everything to be text no signature
     markers = list('t' * len(lines))
+    sig_pattern = compile_pattern('talon_email_signature_patterns', RE_SIGNATURE)
 
     # mark lines starting from bottom up
     # mark only lines that belong to candidate
@@ -92,8 +98,10 @@ def _mark_lines(lines, sender):
             markers[j] = 'e'
         elif is_signature_line(line, sender, EXTRACTOR):
             markers[j] = 's'
+        elif sig_pattern.search(line):
+            markers[j] = 's'
 
-    return "".join(markers)
+    return ("".join(markers), lines, footer)
 
 
 def _process_marked_lines(lines, markers):

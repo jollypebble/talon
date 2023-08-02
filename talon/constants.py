@@ -2,100 +2,89 @@ from __future__ import absolute_import
 import regex as re
 import os
 
+# You can customize these by setting an environment variable.
 TOO_LONG_SIGNATURE_LINE = int(os.environ.get('TALON_TOO_LONG_SIGNATURE_LINE', 60))
 SIGNATURE_MAX_LINES = int(os.environ.get('TALON_SIGNATURE_MAX_LINES', 15))
 SIGNATURE_LINE_MAX_CHARS = int(os.environ.get('TALON_SIGNATURE_LINE_MAX_CHARS', 40))
 
-RE_DELIMITER = re.compile(r'\r?\n')
-
 # regex to fetch signature based on common signature words
-RE_SIGNATURE = re.compile(r'''
-               (
-                   (?:
-                       ^[\s]*--*[\s]*[a-z \.]*$
-                       |
-                       ^thanks[\s,!\.]*$
-                       |
-                       ^thanks*[\s]+you[\s,!\.]*$
-                       |
-                       ^regards[\s,!\.]*$
-                       |
-                       ^cheers[\s,!\.]*$
-                       |
-                       ^best[a-z\s,!\.]*$
-                       |
-                       ^sincerely[a-z,!\.]*$
-                   )
-                   .*
-               )
-               ''', re.I | re.X | re.M | re.S)
+# To modify use `add_filter('talon_email_signature_patterns', YOUR_FUNCTION_NAME)`
+RE_SIGNATURE = r'''
+    ^[\s]*--*[\s]*[a-z \.]*$
+    |
+    ^thanks[\s,!\.]*$
+    |
+    ^thanks*[\s]+you[\s,!\.]*$
+    |
+    ^regards[\s,!\.]*$
+    |
+    ^cheers[\s,!\.]*$
+    |
+    ^best[a-z\s,!\.]*$
+    |
+    ^sincerely[a-z,!\.]*$
+'''
 
-RE_FOOTER_WORDS = re.compile(r'''
-                (
-                    (?:
-                        privileged
-                        |
-                        confidential
-                        |
-                        intended[\s]+recipient
-                        |
-                        all\s+rights\s+reserved
-                        |
-                        copyright
-                        |
-                        consent
-                        |
-                        registered
-                        |
-                        privacy
-                        |
-                        unsubscribe
-                        |
-                        disclose
-                        |
-                        disclosure
-                        |
-                        received[\w\s]+error
-                        |
-                        electronic\s+mail
-                        |
-                        information
-                        |
-                        emails*
-                        |
-                        policy
-                        |
-                        preferences
-                        |
-                        delivery
-                        |
-                        receive
-                        |
-                        secure
-                        |
-                        edelivery
-                    )
-                    .*
-                )
-    ''', re.I | re.X | re.M | re.S)
+# To modify use `add_filter('talon_email_footer_patterns', YOUR_FUNCTION_NAME)`
+RE_FOOTER =r'''
+    ^sent[ ]{1}from[ ]{1}my[\s,!\w]*$
+    |
+    ^sent[ ]from[ ]Mailbox[ ]for[ ]iPhone.*$
+    |
+    ^sent[ ]from[ ]a[ ]phone.*$
+    |
+    ^sent[ ]([\S]*[ ])?from[ ]my[ ]BlackBerry.*$
+    |
+    ^Enviado[ ]desde[ ]mi[ ]([\S]+[ ]){0,2}BlackBerry.*$
+'''
 
-# signatures appended by phone email clients
-RE_PHONE_SIGNATURE = re.compile(r'''
-               (
-                   (?:
-                       ^sent[ ]{1}from[ ]{1}my[\s,!\w]*$
-                       |
-                       ^sent[ ]from[ ]Mailbox[ ]for[ ]iPhone.*$
-                       |
-                       ^sent[ ]from[ ]a[ ]phone.*$
-                       |
-                       ^sent[ ]([\S]*[ ])?from[ ]my[ ]BlackBerry.*$
-                       |
-                       ^Enviado[ ]desde[ ]mi[ ]([\S]+[ ]){0,2}BlackBerry.*$
-                   )
-                   .*
-               )
-               ''', re.I | re.X | re.M | re.S)
+# To modify use `add_filter('talon_email_signature_words', YOUR_FUNCTION_NAME)`
+RE_SIGNATURE_WORDS = '''
+    (T|t)hank.*[,\.!]?
+    |
+    (B|b)est[,\.]?
+    |
+    (R|r)egards[,\.!]?
+    |
+    ^(C|c)heers[,\.!]?
+    |
+    ^sent[ ]{1}from[ ]{1}my[\s,!\w]*$
+    |
+    BR
+    |
+    ^(S|s)incerely[,\.]?
+'''
+
+# To modify use `add_filter('talon_email_footer_words', YOUR_FUNCTION_NAME)`
+RE_FOOTER_WORDS = '''
+    ^sent[ ]{1}from[ ]{1}my[\s,!\w]*$
+    |
+    ^sent[ ]from[ ]Mailbox[ ]for[ ]iPhone.*$
+    |
+    ^sent[ ]from[ ]a[ ]phone.*$
+    |
+    ^sent[ ]([\S]*[ ])?from[ ]my[ ]BlackBerry.*$
+    |
+    ^Enviado[ ]desde[ ]mi[ ]([\S]+[ ]){0,2}BlackBerry.*$
+'''
+
+# To modify use `add_filter('talon_email_footer_lines', YOUR_FUNCTION_NAME)`
+# Complete lines without patterns will be matched in reverse email body using a Levenshtein distance measurment with a threshold of .7
+# Modify the ratio with `add_filter('talon_email_footer_lines_ratio', YOUR_FUNCTION_NAME)
+KNOWN_FOOTER_LINES = []
+
+#To modify use `add_filter('talon_email_sender_blacklist', YOUR_FUNCTION_NAME)`
+BAD_SENDER_NAMES = [
+    # known mail domains
+    'hotmail', 'gmail', 'yandex', 'mail', 'yahoo', 'mailgun', 'mailgunhq',
+    'example',
+    # first level domains
+    'com', 'org', 'net', 'ru',
+    # bad words
+    'mailto'
+]
+
+RE_DELIMITER = re.compile(r'\r?\n')
 
 # see _mark_candidate_indexes() for details
 # c - could be signature line
@@ -128,31 +117,9 @@ RE_SEPARATOR = re.compile('^[\s]*---*[\s]*$')
 RE_SPECIAL_CHARS = re.compile(('^[\s]*([\*]|#|[\+]|[\^]|-|[\~]|[\&]|[\$]|_|[\!]|'
                     '[\/]|[\%]|[\:]|[\=]){10,}[\s]*$'))
 
-RE_SIGNATURE_WORDS = re.compile(('(T|t)hank.*[,\.!]?|(B|b)est[,\.]?|(R|r)egards[,\.!]?|^(C|c)heers[,\.!]?|'
-                    '^sent[ ]{1}from[ ]{1}my[\s,!\w]*$|BR|^(S|s)incerely[,\.]?|'
-                    '(C|c)orporation|Group'))
-
-RE_FOOTER_WORDS = re.compile(('(P|p)rivileged|(C|c)onfidential|(I|i)ntended[\s]+recipient|'
-                    '(A|a)ll[ ](R|r)ights[ ](R|r)eserved|(C|c)opyright|(C|c)onsent|(R|r)egistered|'
-                    '(P|p)rivacy|(U|u)nsubscribe|(D|d)isclose|(D|d)isclosure|(R|r)eceived[\w\s]+error|'
-                    '(E|e)lectronic[\s]+mail|(I|i)nformation|(E|e)mail|(P|p)olicy|(D|d)elivery|(R|r)eceive|'
-                    '(E|e)delivery|(S|s)ecure|'
-                    '^sent[ ]{1}from[ ]{1}my[\s,!\w]*$|^sent[ ]from[ ]Mailbox[ ]for[ ]iPhone.*$|'
-                    '^sent[ ]from[ ]a[ ]phone.*$|^sent[ ]([\S]*[ ])?from[ ]my[ ]BlackBerry.*$|^Enviado[ ]desde[ ]mi[ ]([\S]+[ ]){0,2}BlackBerry.*$'))
-
 # Taken from:
 # http://www.cs.cmu.edu/~vitor/papers/sigFilePaper_finalversion.pdf
 # Line contains a pattern like Vitor R. Carvalho or William W. Cohen.
 RE_NAME = re.compile('[A-Z][a-z]+\s\s?[A-Z][\.]?\s\s?[A-Z][a-z]+')
 
 INVALID_WORD_START = re.compile('\(|\+|[\d]')
-
-BAD_SENDER_NAMES = [
-    # known mail domains
-    'hotmail', 'gmail', 'yandex', 'mail', 'yahoo', 'mailgun', 'mailgunhq',
-    'example',
-    # first level domains
-    'com', 'org', 'net', 'ru',
-    # bad words
-    'mailto'
-]

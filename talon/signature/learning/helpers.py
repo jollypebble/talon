@@ -7,7 +7,8 @@
 """
 import unicodedata
 import regex as re
-from talon.constants import (SIGNATURE_MAX_LINES, SIGNATURE_LINE_MAX_CHARS, RE_EMAIL, RE_RELAX_PHONE, RE_URL, RE_SIGNATURE_WORDS, INVALID_WORD_START, BAD_SENDER_NAMES)
+from talon.constants import (SIGNATURE_MAX_LINES, SIGNATURE_LINE_MAX_CHARS, RE_EMAIL, RE_RELAX_PHONE, RE_URL, RE_SIGNATURE, INVALID_WORD_START, BAD_SENDER_NAMES)
+from talon.utils import apply_filters, compile_pattern
 
 def binary_regex_search(prog):
     """Returns a function that returns 1 or 0 depending on regex search result.
@@ -95,10 +96,11 @@ def extract_names(sender):
     # Remove too short words and words from "black" list i.e.
     # words like `ru`, `gmail`, `com`, `org`, etc.
     names = list()
+    sender_blacklist = apply_filters('talon_email_sender_blacklist', BAD_SENDER_NAMES)
     for word in sender.split():
         if len(word) < 2:
             continue
-        if word in BAD_SENDER_NAMES:
+        if word in sender_blacklist:
             continue
         if word in names:
             continue
@@ -171,13 +173,14 @@ def has_signature(body, sender):
     candidate = non_empty[-SIGNATURE_MAX_LINES:]
     upvotes = 0
     sender_check = contains_sender_names(sender)
+    sig_pattern = compile_pattern('talon_email_signature_patterns', RE_SIGNATURE)
     for line in candidate:
         # we check lines for sender's name, phone, email and url,
         # those signature lines shouldn't take more then 40 characters. You can override this with the environment variable.
         if len(line.strip()) > SIGNATURE_LINE_MAX_CHARS:
             continue
 
-        if (binary_regex_search(RE_SIGNATURE_WORDS)(line)):
+        if (sig_pattern.search(line)):
             upvotes += 1
 
         if sender_check(line):
