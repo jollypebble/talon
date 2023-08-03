@@ -7,7 +7,7 @@
 """
 import unicodedata
 import regex as re
-from talon.constants import (SIGNATURE_MAX_LINES, SIGNATURE_LINE_MAX_CHARS, RE_EMAIL, RE_RELAX_PHONE, RE_URL, RE_SIGNATURE, INVALID_WORD_START, BAD_SENDER_NAMES)
+from talon.constants import (SIGNATURE_MAX_LINES, SIGNATURE_LINE_MAX_CHARS, RE_EMAIL, RE_RELAX_PHONE, RE_URL, RE_SIGNATURE, RE_FOOTER, INVALID_WORD_START, BAD_SENDER_NAMES)
 from talon.utils import apply_filters, compile_pattern
 
 def binary_regex_search(prog):
@@ -174,6 +174,7 @@ def has_signature(body, sender):
     upvotes = 0
     sender_check = contains_sender_names(sender)
     sig_pattern = compile_pattern('talon_email_signature_patterns', RE_SIGNATURE)
+    footer_pattern = compile_pattern('talon_email_footer_patterns', RE_FOOTER)
     for line in candidate:
         # we check lines for sender's name, phone, email and url,
         # those signature lines shouldn't take more then 40 characters. You can override this with the environment variable.
@@ -181,6 +182,9 @@ def has_signature(body, sender):
             continue
 
         if (sig_pattern.search(line)):
+            upvotes += 1
+
+        if (footer_pattern.search(line)):
             upvotes += 1
 
         if sender_check(line):

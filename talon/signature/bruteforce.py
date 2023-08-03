@@ -27,13 +27,6 @@ def extract_signature(msg_body):
         stripped_body = msg_body.strip()
         footer = None
 
-        # strip off phone signature
-        #footer_pattern = compile_pattern('talon_email_footer_patterns', RE_FOOTER)
-        #footer = footer_pattern.search(msg_body)
-        #if footer:
-        #    stripped_body = stripped_body[:footer.start()]
-        #    footer = footer.group()
-
         # decide on signature candidate
         lines = stripped_body.splitlines()
 
@@ -93,12 +86,13 @@ def get_signature_candidate(lines):
     footer_pattern = compile_pattern('talon_email_footer_patterns', RE_FOOTER)
     footer_lines = apply_filters('talon_email_footer_lines', KNOWN_FOOTER_LINES)
     similarity_ratio = apply_filters('talon_email_footer_lines_ratio', 0.75)
-
+    found_footer = False
     for i, line_idx in reversed(list(enumerate(candidate))):
         is_footer_line = False
 
         if footer_pattern.search(lines[line_idx]):
             is_footer_line = True
+            found_footer = True
 
         if (is_footer_line):
             footer_start_idx = i
@@ -107,6 +101,7 @@ def get_signature_candidate(lines):
             for footer_line in footer_lines:
                 if Levenshtein.ratio(footer_line, lines[line_idx]) > similarity_ratio:
                     is_footer_line = True
+                    found_footer = True
                     footer_start_idx = i
                     break
 
@@ -115,16 +110,23 @@ def get_signature_candidate(lines):
             else:
                 break
 
+    # There is a likely scenario that one line replies with a footer such as 'sent from my iphone' won't be caught.
+    # In this case if there are only 2 lines in an email and one of them is a footer, we send back 0 candidates
     if (footer_start_idx != len(candidate)-1):
         sig_stop = footer_start_idx
         footer = lines[candidate[sig_stop]:]
         lines = lines[:candidate[sig_stop]]
         candidate = candidate[:sig_stop]
+    elif ((len(candidate) == 1) and found_footer):
+        footer = lines[candidate[footer_start_idx]:]
+        lines = lines[:candidate[footer_start_idx]]
+        candidate = []
 
     # signature shouldn't be longer then SIGNATURE_MAX_LINES
     candidate = candidate[-SIGNATURE_MAX_LINES:]
     markers = _mark_candidate_indexes(lines, candidate)
     candidate = _process_marked_candidate_indexes(candidate, markers)
+
     # get actual lines for the candidate instead of indexes
     if candidate:
         candidate = lines[candidate[0]:]
@@ -145,30 +147,17 @@ def _mark_candidate_indexes(lines, candidate):
     >>> _mark_candidate_lines(['Some text', '', '-', 'Bob'], [0, 2, 3])
     'cdc'
     """
-    # Footers start at the last line whene we traverse backwords. So once it's broken, we don't accept matches to the word.
-    #search_for_footer = True
+
     # at first consider everything to be potential signature lines
     markers = list('c' * len(candidate))
-    #sig_pattern = compile_pattern('talon_email_signature_patterns', RE_SIGNATURE)
-    #footer_pattern = compile_pattern('talon_email_footer_patterns', RE_FOOTER)
     # mark lines starting from bottom up
     for i, line_idx in reversed(list(enumerate(candidate))):
-        # This allows us to keep longer footer lines as potential candidates until we see a break in a signature footer
-        #if search_for_footer and footer_pattern.search(lines[line_idx]):
-        #    markers[i] = 'c'
-        #elif search_for_footer and sig_pattern.search(lines[line_idx]):
-        #if sig_pattern.search(lines[line_idx]):
-        #    markers[i] = 'c'
-            #search_for_footer = False
-        #elif len(lines[line_idx].strip()) > TOO_LONG_SIGNATURE_LINE:
         if len(lines[line_idx].strip()) > TOO_LONG_SIGNATURE_LINE:
             markers[i] = 'l'
-            #search_for_footer = False
         else:
             line = lines[line_idx].strip()
             if (line.startswith('-') and line.strip("-")):
                 markers[i] = 'd'
-            #search_for_footer = False
 
     return "".join(markers)
 

@@ -10,15 +10,17 @@ SIGNATURE_LINE_MAX_CHARS = int(os.environ.get('TALON_SIGNATURE_LINE_MAX_CHARS', 
 # regex to fetch signature based on common signature words
 # To modify use `add_filter('talon_email_signature_patterns', YOUR_FUNCTION_NAME)`
 RE_SIGNATURE = r'''
-    ^[\s]*--*[\s]*[a-z \.]*$
+    ^[\s]*--*[\s]*[a-z\s\.]*$
     |
     ^thanks[\s,!\.]*$
     |
-    ^thanks*[\s]+you[\s,!\.]*$
+    ^thanks?[\s]+you[\s,!\.]*$
     |
     ^regards[\s,!\.]*$
     |
     ^cheers[\s,!\.]*$
+    |
+    ^all\s+(?:the)?(?:my)?\s+best[\s,!\.]*$
     |
     ^best[a-z\s,!\.]*$
     |
@@ -27,45 +29,41 @@ RE_SIGNATURE = r'''
 
 # To modify use `add_filter('talon_email_footer_patterns', YOUR_FUNCTION_NAME)`
 RE_FOOTER =r'''
-    ^sent[ ]{1}from[ ]{1}my[\s,!\w]*$
+    ^sent\s+from\s+my[\s,!\w]*$
     |
-    ^sent[ ]from[ ]Mailbox[ ]for[ ]iPhone.*$
+    ^sent\s+from\s+Mailbox\s+for\s+[\s,!\w]*.*$
     |
-    ^sent[ ]from[ ]a[ ]phone.*$
+    ^sent\s+from\s+a\s+phone.*$
     |
-    ^sent[ ]([\S]*[ ])?from[ ]my[ ]BlackBerry.*$
+    ^sent\s+(?:\S*\s+)?from\s+my[\s,!\w]*.*$
     |
-    ^Enviado[ ]desde[ ]mi[ ]([\S]+[ ]){0,2}BlackBerry.*$
+    ^Enviado\s+desde\s+mi\s+(?:\S+\s+){0,2}[\s,!\w]*.*$
 '''
 
 # To modify use `add_filter('talon_email_signature_words', YOUR_FUNCTION_NAME)`
-RE_SIGNATURE_WORDS = '''
-    (T|t)hank.*[,\.!]?
+RE_SIGNATURE_WORDS = r'''
+    [Tt]hank.*[,\.!]?
     |
-    (B|b)est[,\.]?
+    [Bb]est[,\.]?
     |
-    (R|r)egards[,\.!]?
+    [Rr]egards[,\.!]?
     |
-    ^(C|c)heers[,\.!]?
+    [Cc]heers[,\.!]?
     |
-    ^sent[ ]{1}from[ ]{1}my[\s,!\w]*$
-    |
-    BR
-    |
-    ^(S|s)incerely[,\.]?
+    [Ss]incerely[,\.]?
 '''
 
 # To modify use `add_filter('talon_email_footer_words', YOUR_FUNCTION_NAME)`
-RE_FOOTER_WORDS = '''
-    ^sent[ ]{1}from[ ]{1}my[\s,!\w]*$
+RE_FOOTER_WORDS = r'''
+    [Ss]ent\s+from\s+my[\s,!\w]*
     |
-    ^sent[ ]from[ ]Mailbox[ ]for[ ]iPhone.*$
+    [Ss]ent\s+from\s+[M|m]ailbox\s+for\s+[\s,!\w]*.*
     |
-    ^sent[ ]from[ ]a[ ]phone.*$
+    [Ss]ent\s+from\s+a\s+phone.*
     |
-    ^sent[ ]([\S]*[ ])?from[ ]my[ ]BlackBerry.*$
+    [Ss]ent\s+(?:\S*\s+)?from\s+my[\s,!\w]*.*
     |
-    ^Enviado[ ]desde[ ]mi[ ]([\S]+[ ]){0,2}BlackBerry.*$
+    [Ee]nviado\s+desde\s+mi\s+(\S+\s+){0,2}[\s,!\w]*.*
 '''
 
 # To modify use `add_filter('talon_email_footer_lines', YOUR_FUNCTION_NAME)`
